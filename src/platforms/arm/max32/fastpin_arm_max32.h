@@ -16,29 +16,32 @@
 namespace fl {
 
 
-template<uint8_t PIN, mxc_gpio_regs_t* PORT(), uint32_t mask> class _ARMPIN: public ValidPinBase {
+template<uint8_t PIN, mxc_gpio_regs_t* PORT(), uint32_t MASK> class _ARMPIN: public ValidPinBase {
 public:
     // MAX32 uses 32 bit registers aligned to 32 bit boundaries
 	typedef volatile uint32_t * port_ptr_t;
 	typedef uint32_t port_t;
 
-	inline static void setOutput() { mxc_gpio_cfg_t pinConfig = {PORT(), mask, MXC_GPIO_FUNC_OUT, MXC_GPIO_PAD_NONE, MXC_GPIO_VSSEL_VDDIO, MXC_GPIO_DRVSTR_0}; MXC_GPIO_Config(&pinConfig); }
-	inline static void setInput() { mxc_gpio_cfg_t pinConfig = {PORT(), mask, MXC_GPIO_FUNC_IN, MXC_GPIO_PAD_NONE, MXC_GPIO_VSSEL_VDDIO, MXC_GPIO_DRVSTR_0}; MXC_GPIO_Config(&pinConfig); }
+	inline static void setOutput() { mxc_gpio_cfg_t pinConfig = {PORT(), MASK, MXC_GPIO_FUNC_OUT, MXC_GPIO_PAD_NONE, MXC_GPIO_VSSEL_VDDIO, MXC_GPIO_DRVSTR_0}; MXC_GPIO_Config(&pinConfig); }
+	inline static void setInput() { mxc_gpio_cfg_t pinConfig = {PORT(), MASK, MXC_GPIO_FUNC_IN, MXC_GPIO_PAD_NONE, MXC_GPIO_VSSEL_VDDIO, MXC_GPIO_DRVSTR_0}; MXC_GPIO_Config(&pinConfig); }
 
-    inline static void hi() __attribute__ ((always_inline)) { MXC_GPIO_OutSet(PORT(), mask); }
-	inline static void lo() __attribute__ ((always_inline)) { MXC_GPIO_OutClr(PORT(), mask); }
-	inline static void set(FASTLED_REGISTER port_t val) __attribute__ ((always_inline)) { MXC_GPIO_OutPut(PORT(), mask, val); }
+    inline static void hi() __attribute__ ((always_inline)) { MXC_GPIO_OutSet(PORT(), MASK); }
+	inline static void lo() __attribute__ ((always_inline)) { MXC_GPIO_OutClr(PORT(), MASK); }
+	inline static void set(FASTLED_REGISTER port_t val) __attribute__ ((always_inline)) { MXC_GPIO_OutPut(PORT(), MASK, val); }
 
 	inline static void strobe() __attribute__ ((always_inline)) { toggle(); toggle(); }
 
-	inline static void toggle() __attribute__ ((always_inline)) { MXC_GPIO_OutToggle(PORT(), mask); }
+	inline static void toggle() __attribute__ ((always_inline)) { MXC_GPIO_OutToggle(PORT(), MASK); }
 
 	inline static void hi(FASTLED_REGISTER port_ptr_t port) __attribute__ ((always_inline)) { hi(); }
 	inline static void lo(FASTLED_REGISTER port_ptr_t port) __attribute__ ((always_inline)) { lo(); }
-	//inline static void fastset(FASTLED_REGISTER port_ptr_t port, FASTLED_REGISTER port_t val) __attribute__ ((always_inline)) { port->out = (port->out & ~mask) | (val & mask); }
+	inline static void fastset(FASTLED_REGISTER port_ptr_t port, FASTLED_REGISTER port_t val) __attribute__ ((always_inline)) { *port = (*port & ~MASK) | (val & MASK); }
+
+    inline static port_ptr_t port() __attribute__ ((always_inline)) { return &PORT()->out; }
+    inline static port_t mask() __attribute__ ((always_inline)) { return MASK; }
 };
 
-#define _FL_DEFPIN(PIN, PORT, mask) constexpr mxc_gpio_regs_t* _Func##PORT() { return PORT; }; template<> class FastPin<PIN> : public _ARMPIN<PIN, _Func##PORT, mask> {};
+#define _FL_DEFPIN(PIN, PORT, MASK) constexpr mxc_gpio_regs_t* _Func##PORT() { return PORT; }; template<> class FastPin<PIN> : public _ARMPIN<PIN, _Func##PORT, MASK> {};
 
 #if defined(MAX32665)
 #include "max32665.h"

@@ -16,6 +16,10 @@
 #define F_CPU 60000000
 #endif
 
+#ifndef INTERRUPT_THRESHOLD
+#define INTERRUPT_THRESHOLD 1
+#endif
+
 #include "fl/stdint.h"
 
 #define PROGMEM
@@ -40,17 +44,7 @@ typedef volatile uint32_t RwReg;
 #include "mxc_delay.h"
 #include "rtc.h"
 
-// Must enable both the RTC clock source and the RTC subsystem outside of FastLED
-uint32_t micros()
-{
-    uint32_t sec, subsec;
-
-    while (MXC_RTC_GetBusyFlag() == E_BUSY) {};
-
-    MXC_RTC_GetTime(&sec, &subsec);
-
-    return sec * 1000 + subsec * 244;
-}
+#include <Arduino.h>
 
 // definitions for "generic_pin.h" to compile properly, not functioning as our own pin implementation will be used
 #define OUTPUT 1
