@@ -31,6 +31,8 @@
     defined(NRF52840_XXAA) || defined(ARDUINO_NRF52840_FEATHER_SENSE) || \
     /* Ambiq Apollo3 */ \
     defined(ARDUINO_ARCH_APOLLO3) || defined(FASTLED_APOLLO3) || \
+    /* Maxim MAX32 */ \
+    defined(MAX32665) || \
     /* Raspberry Pi RP2040 */ \
     defined(ARDUINO_ARCH_RP2040) || defined(TARGET_RP2040) || \
     defined(PICO_32BIT) || defined(ARDUINO_RASPBERRY_PI_PICO) || \

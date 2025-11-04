@@ -40,6 +40,9 @@
 #elif defined(ARDUINO_ARCH_RP2040) || defined(PICO_RP2040)
 // RP2040 (Raspberry Pi Pico etc)
 #include "platforms/arm/rp/rp2040/fastled_arm_rp2040.h"
+#elif defined(MAX32665)
+// Maxim MAX32 platforms
+#include "platforms/arm/max32/fastled_arm_max32.h"
 #elif defined(ESP8266)
 #include "platforms/esp/8266/fastled_esp8266.h"
 #elif defined(ESP32)

@@ -41,6 +41,9 @@
 #elif defined(ARDUINO_ARCH_RP2040) || defined(PICO_RP2040)
     // RP2040 (Raspberry Pi Pico)
     #include "platforms/arm/rp/rp2040/fastpin_arm_rp2040.h"
+#elif defined(MAX32665)
+    // Maxim MAX32 platforms
+    #include "platforms/arm/max32/fastpin_arm_max32.h"
 #elif defined(ARDUINO_ARCH_RENESAS)
     // Renesas RA4M1 (Arduino UNO R4)
     #include "platforms/arm/renesas/fastpin_arm_renesas.h"
