@@ -13,7 +13,7 @@
 #endif
 
 #ifndef F_CPU
-#define F_CPU 60000000
+#define F_CPU 96000000
 #endif
 
 #ifndef INTERRUPT_THRESHOLD
