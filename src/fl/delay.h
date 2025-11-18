@@ -16,6 +16,7 @@
 // ============================================================================
 
 #include "platforms/delay.h"
+#include "platforms/delaycycles_generic.h"
 
 namespace fl {
 
@@ -101,7 +102,7 @@ FASTLED_FORCE_INLINE void delayNanoseconds() {
   delay_cycles_dwt(cycles);
 #elif defined(ARDUINO_ARCH_SAMD)
   delay_cycles_dwt_samd(cycles);
-#elif defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
+#elif (defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)) && !defined(FL_ARM_NO_CYCCNT)
   delay_cycles_dwt_arm(cycles);
 #else
   delay_cycles_generic(cycles);
