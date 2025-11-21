@@ -165,7 +165,7 @@ private:
 }; // template class
 #elif MAX32_I2S_CLOCKLESS
 void prepareBitPatterns(uint32_t T1ns, uint32_t T2ns, uint32_t T3ns);
-void sendPixelData(uint8_t *data, uint16_t pixel_count);
+void sendPixelData(PixelIterator& pixelIterator);//uint8_t *data, uint16_t pixel_count);
 
 template <int DATA_PIN, typename TIMING, EOrder RGB_ORDER = RGB, int XTRA0 = 0, bool FLIP = false, int WAIT_TIME = 280>
 class ClocklessController : public CPixelLEDController<RGB_ORDER> {
@@ -190,10 +190,11 @@ protected:
         // Send all pixel data
         if (pixels.mLen > 0)
         {
-            uint8_t *data = (uint8_t *)pixels.mData;
-            uint16_t pixel_count = pixels.mLen;
+            //uint8_t *data = (uint8_t *)pixels.mData;
+            //uint16_t pixel_count = pixels.mLen;
+            auto pixel_iterator = pixels.as_iterator(this->getRgbw());
 
-            sendPixelData(data, pixel_count);
+            sendPixelData(pixel_iterator); //data, pixel_count);
         }
 
         // Re-enable interrupts
