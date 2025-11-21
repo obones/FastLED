@@ -191,7 +191,8 @@ namespace fl
 
         constexpr int clearPulsesInFront = 4;
         uint16_t pixelsPulsesSize =
-            ceil(
+            clearPulsesInFront        // samples set at 0 to "clear" the line
+            + ceil(
                 (
                     pixel_count
                     * 3               // 3 bytes per pixel
@@ -201,8 +202,7 @@ namespace fl
                 / (float)USABLE_BITS  // m usable bits in each "cell" of the array
             );
         pixelsPulsesSize +=
-            clearPulsesInFront / 2    // sample pairs set at 0 to "clear" the line
-            + pixelsPulsesSize % 2    // ensure we have an even number of uint32_t elements for our two PCM channels
+            pixelsPulsesSize % 2      // ensure we have an even number of uint32_t elements for our two PCM channels
             + FIFO_DEPTH * 4;         // full 0 words to "clear the line" after the bits have been sent
         uint32_t pixelsPulses[pixelsPulsesSize] = {};
         printf("pixelsPulsesSize: %d\n", pixelsPulsesSize);
@@ -252,7 +252,7 @@ namespace fl
         printf("\n");
 
         // disable TX and saturate the FIFOs
-        MXC_AUDIO->global_en = 1;
+        MXC_AUDIO->global_en = 0;
         MXC_AUDIO->pcm_tx_enables_byte0 = 0;
 
         nextSample = pixelsPulses;
@@ -266,7 +266,8 @@ namespace fl
         printf_binary(MXC_AUDIO->int_pcm_tx_status);
         printf("\n");
 
-        for (int fifoIndex = 0; (fifoIndex < FIFO_DEPTH) && (/*wordIndex < pixelsPulsesSize*/nextSample < afterLastSample); fifoIndex++)
+        /*
+        for (int fifoIndex = 0; (fifoIndex < FIFO_DEPTH) && (nextSample < afterLastSample); fifoIndex++)
         {
             //MXC_AUDIO->tx_pcm_ch0_addr = pixelsPulses[wordIndex++];
             //MXC_AUDIO->tx_pcm_ch1_addr = pixelsPulses[wordIndex++];
@@ -274,7 +275,7 @@ namespace fl
             printf("enqueue %d: int_pcm_tx_status: ", fifoIndex);
             printf_binary(MXC_AUDIO->int_pcm_tx_status);
             printf("\n");
-        }
+        }*/
         //printf("wordIndex after saturate: %d\n", wordIndex);
         printf("nextSample after saturate: %p\n", nextSample);
         printf("int_pcm_tx_status: ");
@@ -316,7 +317,7 @@ namespace fl
         // Enable TX which will process the FIFOs and trigger interrupts along the way to replenish tem
         //and send the buffer, two words at a time, only if there is room in the FIFOs (ie, not almost full)
         MXC_AUDIO->pcm_tx_enables_byte0 = (MXC_F_PCM_TX_CH0_EN | MXC_F_PCM_TX_CH1_EN);
-        //MXC_AUDIO->global_en = 1;
+        MXC_AUDIO->global_en = 1;
         /*while (wordIndex < pixelsPulsesSize)
         {
             while ((MXC_AUDIO->int_pcm_tx_status & MXC_F_PDM_TX_FIFO_CH1_ALMOST_FULL) != 0)
@@ -376,7 +377,7 @@ namespace fl
         printf("\n");
 
         //MXC_Delay(1);
-        MXC_AUDIO->pcm_tx_enables_byte0 = 0;
         MXC_AUDIO->global_en = 0; // settings pcm_tx_enables_byte0 to 0 leaves 900mv on the DOUT pin!
+        MXC_AUDIO->pcm_tx_enables_byte0 = 0;
     }
 }
