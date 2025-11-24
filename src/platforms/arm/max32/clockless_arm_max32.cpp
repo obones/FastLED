@@ -159,7 +159,9 @@ namespace fl
         {
             // here, we must split the bit pulses over two consecutive words in the buffer
             int8_t remainingBits = gPulsesPerBit + currentPulsePos - LOWEST_USABLE_BIT_INDEX;
+            #ifdef PRINT_PULSES_DETAILS
             printf("  remainingBits: %d - gPulsesPerBit: %d - currentPulsePos: %d, LOWEST_USABLE_BIT_INDEX: %d\n", remainingBits, gPulsesPerBit, currentPulsePos, LOWEST_USABLE_BIT_INDEX);
+            #endif
             //   remainingBits: 0 - gPulsesPerBit: 10 - currentPulsePos: 2, LOWEST_USABLE_BIT_INDEX: 8
 
             pixelsPulses[currentWord] |= (bitPulses >> (gPulsesPerBit - remainingBits)) << LOWEST_USABLE_BIT_INDEX;
@@ -205,7 +207,9 @@ namespace fl
             pixelsPulsesSize % 2      // ensure we have an even number of uint32_t elements for our two PCM channels
             + FIFO_DEPTH * 4;         // full 0 words to "clear the line" after the bits have been sent
         uint32_t pixelsPulses[pixelsPulsesSize] = {};
+        #ifdef PRINT_PULSES_DETAILS
         printf("pixelsPulsesSize: %d\n", pixelsPulsesSize);
+        #endif
 
         // Iterate through all bytes in all pixels to add their "pulse" bit patterns in the buffer
         uint16_t currentWord = clearPulsesInFront;
@@ -247,9 +251,11 @@ namespace fl
         for (int i = pixelsPulsesSize - zeroPulsesAtEnd; i < pixelsPulsesSize; i++)
             pixelsPulses[i] = 0b10000000000000000000001000000000 | ((uint32_t)1 << (WORD_BIT_LENGTH - (pixelsPulsesSize - i)));
         */
+        #ifdef PRINT_PULSES_DETAILS
         printf("pixelsPulses:\n");
         printf_binary(pixelsPulses, pixelsPulsesSize);
         printf("\n");
+        #endif
 
         // disable TX and saturate the FIFOs
         MXC_AUDIO->global_en = 0;
@@ -257,6 +263,7 @@ namespace fl
 
         nextSample = pixelsPulses;
         afterLastSample = nextSample + pixelsPulsesSize;
+        #ifdef PRINT_PULSES_DETAILS
         printf("afterLastSample: %p\n", afterLastSample);
 
         //uint16_t wordIndex = 0;
@@ -265,6 +272,7 @@ namespace fl
         printf("int_pcm_tx_status: ");
         printf_binary(MXC_AUDIO->int_pcm_tx_status);
         printf("\n");
+        #endif
 
         /*
         for (int fifoIndex = 0; (fifoIndex < FIFO_DEPTH) && (nextSample < afterLastSample); fifoIndex++)
@@ -277,10 +285,12 @@ namespace fl
             printf("\n");
         }*/
         //printf("wordIndex after saturate: %d\n", wordIndex);
+        #ifdef PRINT_PULSES_DETAILS
         printf("nextSample after saturate: %p\n", nextSample);
         printf("int_pcm_tx_status: ");
         printf_binary(MXC_AUDIO->int_pcm_tx_status);
         printf("\n");
+        #endif
 
         /*
         // setup interrupts
@@ -291,7 +301,9 @@ namespace fl
 
         constexpr IRQn_Type AudioIrqNumber = AUDIO_IRQn;
 
+        #ifdef PRINT_PULSES_DETAILS
         printf("ICTR: %d\n", SCnSCB->ICTR);
+        #endif
 
         NVIC_ClearPendingIRQ(AudioIrqNumber);
         NVIC_DisableIRQ(AudioIrqNumber);
@@ -306,6 +318,7 @@ namespace fl
             printf("\n");
         }*/
 
+        #ifdef PRINT_PULSES_DETAILS
         typedef struct {
             uint32_t tx;
             uint32_t* nextSample;
@@ -313,6 +326,7 @@ namespace fl
         } Details;
         Details details[pixelsPulsesSize] = {};
         int detailsIndex = 0;
+        #endif
 
         // Enable TX which will process the FIFOs and trigger interrupts along the way to replenish tem
         //and send the buffer, two words at a time, only if there is room in the FIFOs (ie, not almost full)
@@ -360,7 +374,12 @@ namespace fl
             printf("\n");*/
             waitCount++;
         }
+
+        #ifdef PRINT_PULSES_DETAILS
+        uint32_t status = MXC_AUDIO->int_pcm_tx_status;
         printf("waitCount: %d\n", waitCount);
+        #endif
+        #ifdef PRINT_PULSES_DETAILS
         printf("Details:\n");
         for (int i = 0; i < detailsIndex; i++)
         {
@@ -368,13 +387,15 @@ namespace fl
             printf_binary(details[i].tx);
             printf(" - nextSample: %p - irqCounter: %d\n", details[i].nextSample, details[i].irqCounter);
         }
+        #endif
 
         //printf("wordIndex at end: %d\n", wordIndex);
-        uint32_t status = MXC_AUDIO->int_pcm_tx_status;
+        #ifdef PRINT_PULSES_DETAILS
         printf("nextSample at end: %p\n", nextSample);
         printf("int_pcm_tx_status: ");
         printf_binary(status);
         printf("\n");
+        #endif
 
         //MXC_Delay(1);
         MXC_AUDIO->global_en = 0; // settings pcm_tx_enables_byte0 to 0 leaves 900mv on the DOUT pin!
