@@ -188,6 +188,12 @@ namespace fl
 
         mxc_audio_I2S_config_t config = { 0 };
 
+        // This config is totally outside I2S specs but we use the Audio Subsystem as a pattern generator of
+        // infinite size, using the DOUT pin (GPIO0.25) as the DataIn signal for clockless LEDs
+        // For this, we use the system clock (HSCLK) as the master audio clock source, do not use the N/M
+        // generator (BCLKSource = MXC_AUDIO_BCLK_SOURCE_F_AUDIO) and use the BLCK divider in toggle mode
+        // to get to the final desired bit frequency.
+        // Most other parameters are not used, but everything must be setup to get the proper signal out.
         config.audio = MXC_AUDIO;
         config.masterClockSource = MXC_AUDIO_CLK_SRC_HSCLK;
         config.clock = MXC_AUDIO_CLK_12_288MHz;
@@ -222,7 +228,6 @@ namespace fl
             #ifdef PRINT_PULSES_DETAILS
             printf("  remainingBits: %d - gPulsesPerBit: %d - currentPulsePos: %d, LOWEST_USABLE_BIT_INDEX: %d\n", remainingBits, gPulsesPerBit, currentPulsePos, LOWEST_USABLE_BIT_INDEX);
             #endif
-            //   remainingBits: 0 - gPulsesPerBit: 10 - currentPulsePos: 2, LOWEST_USABLE_BIT_INDEX: 8
 
             pixelsPulses[currentWord] |= (bitPulses >> (gPulsesPerBit - remainingBits)) << LOWEST_USABLE_BIT_INDEX;
             currentWord++;
@@ -296,28 +301,14 @@ namespace fl
             pixelIterator.stepDithering();
         }
 
-        /*for (uint16_t i = 0; i < pixel_count * 3; ++i)
-        {
-            uint8_t byte = data[i];
-            addByte(byte, currentWord, currentPulsePos, pixelsPulses);
-        }*/
-
-        /*const int zeroPulsesInFront = 6;
-        const int zeroPulsesAtEnd = 2;
-        for (int i = 0; i < zeroPulsesInFront; i++)
-            pixelsPulses[i] = 0b10000000000000000000001000000000 | ((uint32_t)1 << (i+2 + LOWEST_USABLE_BIT_INDEX));
-        for (int i = zeroPulsesInFront; i < pixelsPulsesSize - zeroPulsesAtEnd; i++)
-            pixelsPulses[i] = 0xFFFFFE00 & ~((uint32_t)1 << (i-zeroPulsesInFront+2 + LOWEST_USABLE_BIT_INDEX));
-        for (int i = pixelsPulsesSize - zeroPulsesAtEnd; i < pixelsPulsesSize; i++)
-            pixelsPulses[i] = 0b10000000000000000000001000000000 | ((uint32_t)1 << (WORD_BIT_LENGTH - (pixelsPulsesSize - i)));
-        */
         #ifdef PRINT_PULSES_DETAILS
         printf("pixelsPulses:\n");
         printf_binary(pixelsPulses, pixelsPulsesSize);
         printf("\n");
         #endif
 
-        // disable TX and saturate the FIFOs
+        // Disable TX and prepare interrupt handler
+        // Setting pcm_tx_enables_byte0 to 0 leaves 900mv on the DOUT pin, so we must disable the audio system globally
         MXC_AUDIO->global_en = 0;
         MXC_AUDIO->pcm_tx_enables_byte0 = 0;
 
@@ -326,27 +317,7 @@ namespace fl
         #ifdef PRINT_PULSES_DETAILS
         printf("afterLastSample: %p\n", afterLastSample);
 
-        //uint16_t wordIndex = 0;
-        //printf("wordIndex before saturate: %d\n", wordIndex);
-        printf("nextSample before saturate: %p\n", nextSample);
-        printf("int_pcm_tx_status: ");
-        printf_binary(MXC_AUDIO->int_pcm_tx_status);
-        printf("\n");
-        #endif
-
-        /*
-        for (int fifoIndex = 0; (fifoIndex < FIFO_DEPTH) && (nextSample < afterLastSample); fifoIndex++)
-        {
-            //MXC_AUDIO->tx_pcm_ch0_addr = pixelsPulses[wordIndex++];
-            //MXC_AUDIO->tx_pcm_ch1_addr = pixelsPulses[wordIndex++];
-            enqueueSamplePair();
-            printf("enqueue %d: int_pcm_tx_status: ", fifoIndex);
-            printf_binary(MXC_AUDIO->int_pcm_tx_status);
-            printf("\n");
-        }*/
-        //printf("wordIndex after saturate: %d\n", wordIndex);
-        #ifdef PRINT_PULSES_DETAILS
-        printf("nextSample after saturate: %p\n", nextSample);
+        printf("nextSample before setup: %p\n", nextSample);
         printf("int_pcm_tx_status: ");
         printf_binary(MXC_AUDIO->int_pcm_tx_status);
         printf("\n");
@@ -355,7 +326,7 @@ namespace fl
         // setup interrupts
         irqCounter = 0;
 
-        uint32_t interrupts = MXC_F_EN_HF_PCM_TX /*| MXC_F_EN_AE_PCM_TX*/;
+        uint32_t interrupts = MXC_F_EN_HF_PCM_TX;
         MXC_AUDIO_EnableInterrupts(MXC_AUDIO, interrupts);
 
         constexpr IRQn_Type AudioIrqNumber = AUDIO_IRQn;
@@ -370,13 +341,6 @@ namespace fl
         NVIC_SetPriority(AudioIrqNumber, 0);
         NVIC_EnableIRQ(AudioIrqNumber);
 
-        /*for (int i = 0; i < 8; i++)
-        {
-            printf("NVIC->ISER[%d]: ", i);
-            printf_binary(NVIC->ISER[i]);
-            printf("\n");
-        }*/
-
         #ifdef PRINT_PULSES_DETAILS
         typedef struct {
             uint32_t tx;
@@ -388,17 +352,10 @@ namespace fl
         #endif
 
         // Enable TX which will process the FIFOs and trigger interrupts along the way to replenish tem
-        //and send the buffer, two words at a time, only if there is room in the FIFOs (ie, not almost full)
+        // and send the buffer, two words at a time, only if there is room in the FIFOs (ie, not almost full)
         MXC_AUDIO->pcm_tx_enables_byte0 = (MXC_F_PCM_TX_CH0_EN | MXC_F_PCM_TX_CH1_EN);
         MXC_AUDIO->global_en = 1;
-        /*while (wordIndex < pixelsPulsesSize)
-        {
-            while ((MXC_AUDIO->int_pcm_tx_status & MXC_F_PDM_TX_FIFO_CH1_ALMOST_FULL) != 0)
-                printf("%d ", wordIndex);
 
-            MXC_AUDIO->tx_pcm_ch0_addr = pixelsPulses[wordIndex++];
-            MXC_AUDIO->tx_pcm_ch1_addr = pixelsPulses[wordIndex++];
-        }*/
         #ifdef INTERRUPT_BASED
         // Enqueue first sample pairs which will trigger Half full interrupt getting the handler to push further samples
         for (int sampleIndex = 0; sampleIndex < FIFO_DEPTH / 2; sampleIndex++)
@@ -416,21 +373,12 @@ namespace fl
             enqueueSamplePair();
             uint32_t status = MXC_AUDIO->int_pcm_tx_status;
 
-            //printf("irqCounter: %d - ", irqCounter);
-            /*printf("  tx: ");
-            printf_binary(status);
-            printf(" - nextSample: %p - irqCounter: %d\n", nextSample, irqCounter);*/
-            //MXC_Delay(1000000);
-
-            /*details[detailsIndex].tx = status;
-            details[detailsIndex].nextSample = nextSample;
-            details[detailsIndex].irqCounter = irqCounter;*/
             details[detailsIndex] = { status, nextSample, irqCounter };
             detailsIndex++;
             #endif
         }
 
-        // Words are placed in the FIFOs so now we have to:
+        // All words have now been placed in the FIFOs so now we have to:
         //   1. wait for transmission end (ie, FIFOs are empty)
         //   2. wait for the "low to reset" period (280us according to datasheet)
         //   3. disable TX
@@ -438,10 +386,6 @@ namespace fl
         uint32_t waitStartMicros = micros();
         while (MXC_AUDIO->int_pcm_tx_status != 0)
         {
-            /*MXC_Delay(500*1000);
-            printf("  tx: ");
-            printf_binary(MXC_AUDIO->int_pcm_tx_status);
-            printf("\n");*/
             waitCount++;
         }
 
@@ -461,7 +405,6 @@ namespace fl
         #endif
         #endif
 
-        //printf("wordIndex at end: %d\n", wordIndex);
         #ifdef PRINT_PULSES_DETAILS
         printf("nextSample at end: %p\n", nextSample);
         printf("int_pcm_tx_status: ");
@@ -470,12 +413,13 @@ namespace fl
         #endif
 
         // Keep 280 microseconds low to "reset the line" as per datasheet but don't do it blindly with MXC_Delay as
-        // we have already waited for the FIFOs to have been read and we now the last samples to be full of zeros.
+        // we have already waited for the FIFOs to have been read and we know the last samples to be full of zeros.
         uint32_t endMicros = waitStartMicros;
         while (endMicros - waitStartMicros < 280)
             endMicros = micros();
 
-        MXC_AUDIO->global_en = 0; // settings pcm_tx_enables_byte0 to 0 leaves 900mv on the DOUT pin!
+        // As seen above, we must disable the audio system globally
+        MXC_AUDIO->global_en = 0;
         MXC_AUDIO->pcm_tx_enables_byte0 = 0;
     }
 }
