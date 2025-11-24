@@ -56,6 +56,7 @@ static constexpr int8_t FIFO_DEPTH = 4; // per datasheet
 int gPulsesPerBit = 0;
 uint32_t gOneBit = 0;
 uint32_t gZeroBit = 0;
+uint32_t gBitClockDivider = 1;
 
 static uint32_t* volatile nextSample = 0;
 static uint32_t* volatile afterLastSample = 0;
@@ -86,6 +87,7 @@ extern "C" void FLArmMax32AudioIRQHandler(void)
 
 namespace fl
 {
+    // largely inspired by src/platforms/esp/32/drivers/i2s/i2s_esp32dev.cpp
     void prepareBitPatterns(uint32_t T1ns, uint32_t T2ns, uint32_t T3ns)
     {
         /*
@@ -102,8 +104,10 @@ namespace fl
         if (smallest > T3ns)
             smallest = T3ns;
         double freq = (double)1 / (double)(T1ns + T2ns + T3ns);
+        #ifdef PRINT_SETUP_DETAILS
         printf("chipset frequency: %f Khz\n", 1000000L*freq);
         printf("smallest: %d\n",smallest);
+        #endif
 
         int pgc_ = 1;
         int precision = 0;
@@ -120,34 +124,46 @@ namespace fl
             // Serial.printf("%d %d\n",pgc_,(a+b+c)/pgc_);
         }
         pgc_ = pgcd(smallest, precision, T1ns, T2ns, T3ns);
+        #ifdef PRINT_SETUP_DETAILS
         printf("pgcd: %d\nprecision:%d\n", pgc_, precision);
+        #endif
 
         int T1Pulses = (int)T1ns / pgc_;
         int T2Pulses = (int)T2ns / pgc_;
         int T3Pulses = (int)T3ns / pgc_;
 
         gPulsesPerBit = T1Pulses + T2Pulses + T3Pulses;
+        #ifdef PRINT_SETUP_DETAILS
         printf("nb pulse per bit: %d\n", gPulsesPerBit);
         printf("    T1ns: %d - T1Pulses: %d\n", T1ns, T1Pulses);
         printf("    T2ns: %d - T2Pulses: %d\n", T2ns, T2Pulses);
         printf("    T3ns: %d - T3Pulses: %d\n", T3ns, T3Pulses);
+        #endif
 
         freq = 1000000000L * freq * gPulsesPerBit;
+        #ifdef PRINT_SETUP_DETAILS
         printf("needed frequency (nbPulse per bit) * (chipset // frequency): %f Mhz\n", freq / 1000000);
         printf("SystemCoreClock: %d\n", SystemCoreClock);
-        printf("needed BitCLK divider: %d\n", SystemCoreClock / (uint32_t)round(freq) / 2); // divide by two because we use Toggle mode which already halves the clock
+        #endif
+        gBitClockDivider = SystemCoreClock / (uint32_t)round(freq);
+        #ifdef PRINT_SETUP_DETAILS
+        printf("needed BitCLK divider: %d\n", gBitClockDivider);
+        #endif
 
         uint32_t bit_mask = ~(0xFFFFFFFF << gPulsesPerBit);
         int ones_for_one = T1Pulses + T2Pulses;
         gOneBit = 0xFFFFFFFF << (gPulsesPerBit - ones_for_one);
         gOneBit &= bit_mask;
+        #ifdef PRINT_SETUP_DETAILS
         printf("gOneBit:  ");
         printf_binary(gOneBit);
         printf("\n");
+        #endif
 
         int ones_for_zero = T1Pulses;
         gZeroBit = 0xFFFFFFFF << (gPulsesPerBit - ones_for_zero);
         gZeroBit &= bit_mask;
+        #ifdef PRINT_SETUP_DETAILS
         printf("gZeroBit:  ");
         printf_binary(gZeroBit);
         printf("\n");
