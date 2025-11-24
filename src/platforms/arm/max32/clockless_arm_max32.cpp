@@ -6,7 +6,9 @@
 #include "audio.h"
 #include <math.h>
 #include <nvic_table.h>
-#include "pixel_iterator.h"
+#include "fl/pixel_iterator.h"
+
+#define INTERRUPT_BASED
 
 // don't include it, it embarks most of the FastLED framework
 //#include "clockless_arm_max32.h"
@@ -73,8 +75,11 @@ extern "C" void FLArmMax32AudioIRQHandler(void)
 {
     irqCounter++;
 
-    //enqueueSamplePair();
-    //enqueueSamplePair();
+    #ifdef INTERRUPT_BASED
+    // Push one sample pair, so that we reach Almost Full from Half full and never let
+    // the FIFOs go near Almost empty unless there is nothing left to push
+    enqueueSamplePair();
+    #endif
 
     // Clear TX interrupts
     MXC_AUDIO->int_pcm_tx_clr |= 0xFFFFFFFF;
@@ -292,12 +297,11 @@ namespace fl
         printf("\n");
         #endif
 
-        /*
         // setup interrupts
-        uint32_t interrupts = MXC_F_EN_HF_PCM_TX | MXC_F_EN_AE_PCM_TX;
-        MXC_AUDIO_EnableInterrupts(MXC_AUDIO, interrupts);
-
         irqCounter = 0;
+
+        uint32_t interrupts = MXC_F_EN_HF_PCM_TX /*| MXC_F_EN_AE_PCM_TX*/;
+        MXC_AUDIO_EnableInterrupts(MXC_AUDIO, interrupts);
 
         constexpr IRQn_Type AudioIrqNumber = AUDIO_IRQn;
 
@@ -311,7 +315,7 @@ namespace fl
         NVIC_SetPriority(AudioIrqNumber, 0);
         NVIC_EnableIRQ(AudioIrqNumber);
 
-        for (int i = 0; i < 8; i++)
+        /*for (int i = 0; i < 8; i++)
         {
             printf("NVIC->ISER[%d]: ", i);
             printf_binary(NVIC->ISER[i]);
@@ -340,10 +344,16 @@ namespace fl
             MXC_AUDIO->tx_pcm_ch0_addr = pixelsPulses[wordIndex++];
             MXC_AUDIO->tx_pcm_ch1_addr = pixelsPulses[wordIndex++];
         }*/
+        #ifdef INTERRUPT_BASED
+        // Enqueue first sample pairs which will trigger Half full interrupt getting the handler to push further samples
+        for (int sampleIndex = 0; sampleIndex < FIFO_DEPTH / 2; sampleIndex++)
+            enqueueSamplePair();
+        #endif
 
         // Wait for all samples to have been enqueued by the interrupt routine
         while (nextSample < afterLastSample)
         {
+            #ifndef INTERRUPT_BASED
             while ((MXC_AUDIO->int_pcm_tx_status & MXC_F_PDM_TX_FIFO_CH1_ALMOST_FULL) != 0)
             {
                 //printf("%d ", wordIndex);
@@ -362,6 +372,7 @@ namespace fl
             details[detailsIndex].irqCounter = irqCounter;*/
             details[detailsIndex] = { status, nextSample, irqCounter };
             detailsIndex++;
+            #endif
         }
 
         // Words are placed in the FIFOs, wait for transmission end (ie, FIFOs are empty) then disable TX
@@ -379,6 +390,7 @@ namespace fl
         uint32_t status = MXC_AUDIO->int_pcm_tx_status;
         printf("waitCount: %d\n", waitCount);
         #endif
+        #ifndef INTERRUPT_BASED
         #ifdef PRINT_PULSES_DETAILS
         printf("Details:\n");
         for (int i = 0; i < detailsIndex; i++)
@@ -387,6 +399,7 @@ namespace fl
             printf_binary(details[i].tx);
             printf(" - nextSample: %p - irqCounter: %d\n", details[i].nextSample, details[i].irqCounter);
         }
+        #endif
         #endif
 
         //printf("wordIndex at end: %d\n", wordIndex);

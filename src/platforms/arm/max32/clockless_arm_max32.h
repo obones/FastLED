@@ -185,7 +185,7 @@ protected:
 
         // Disable interrupts to ensure timing accuracy
         // (LED protocols are very timing-sensitive on most platforms)
-        cli();
+        //cli();
 
         // Send all pixel data
         if (pixels.mLen > 0)
@@ -198,7 +198,7 @@ protected:
         }
 
         // Re-enable interrupts
-        sei();  // Re-enable interrupts on AVR
+        //sei();  // Re-enable interrupts on AVR
 
         // Mark that we've sent data
         mWait.mark();
