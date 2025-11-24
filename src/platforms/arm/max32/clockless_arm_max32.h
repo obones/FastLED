@@ -9,6 +9,7 @@
 
 namespace fl {
 void prepareBitPatterns(uint32_t T1ns, uint32_t T2ns, uint32_t T3ns);
+void prepareAudioSubsystem();
 void sendPixelData(PixelIterator& pixelIterator);//uint8_t *data, uint16_t pixel_count);
 
 template <int DATA_PIN, typename TIMING, EOrder RGB_ORDER = RGB, int XTRA0 = 0, bool FLIP = false, int WAIT_TIME = 280>
@@ -16,10 +17,9 @@ class ClocklessController : public CPixelLEDController<RGB_ORDER> {
 	CMinWait<WAIT_TIME> mWait;
 public:
 	virtual void init() {
-        // prepareAudio();
-
-        // prepare bit patterns
         prepareBitPatterns(TIMING::T1, TIMING::T2, TIMING::T3);
+
+        prepareAudioSubsystem();
     }
 
 protected:

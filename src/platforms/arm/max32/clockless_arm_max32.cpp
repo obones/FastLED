@@ -167,6 +167,46 @@ namespace fl
         printf("gZeroBit:  ");
         printf_binary(gZeroBit);
         printf("\n");
+        #endif
+    }
+
+    void prepareAudioSubsystem()
+    {
+        //Enable audio subsytem peripheral clock
+        MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_AUDIO);
+        //Enable gpio clock and configure as alternate function
+        MXC_SYS_ClockEnable(MXC_SYS_PERIPH_CLOCK_GPIO0);
+
+        const mxc_gpio_cfg_t gpio_cfg_audio = { MXC_GPIO0,
+                                                //(/*MXC_GPIO_PIN_25 |*/ MXC_GPIO_PIN_27),  // DOUT and BCLK --> does not work, DOUT stays at 1V
+                                                (MXC_GPIO_PIN_24 | MXC_GPIO_PIN_25 | MXC_GPIO_PIN_26 | MXC_GPIO_PIN_27),
+                                                MXC_GPIO_FUNC_ALT1,
+                                                MXC_GPIO_PAD_NONE,
+                                                MXC_GPIO_VSSEL_VDDIOH,
+                                                MXC_GPIO_DRVSTR_3 };
+        MXC_GPIO_Config(&gpio_cfg_audio);
+
+        mxc_audio_I2S_config_t config = { 0 };
+
+        config.audio = MXC_AUDIO;
+        config.masterClockSource = MXC_AUDIO_CLK_SRC_HSCLK;
+        config.clock = MXC_AUDIO_CLK_12_288MHz;
+        config.BCLKSourceSelect = MXC_AUDIO_BCLK_GENERATOR_TOGGLE;
+        config.BCLKSource = MXC_AUDIO_BCLK_SOURCE_F_AUDIO;
+        config.BCLKPolarity = MXC_AUDIO_CLK_POL_HIGH;
+        config.BCLKDivisor = gBitClockDivider / 2;  // divide by two because we use Toggle mode which already halves the clock
+        config.LRCLKPolarity = MXC_AUDIO_CLK_POL_HIGH;
+        config.LRCLKDivider = MXC_AUDIO_LRCLK_DIV_48;
+        config.channelSize = MXC_AUDIO_PCM_CHANNEL_SIZE_24; // want 32 but 24 gets out
+        config.TxInterfaceSampleRates = MXC_AUDIO_PCM_SAMPLE_RATE_192kHz;
+        config.RxInterfaceSampleRates = MXC_AUDIO_PCM_SAMPLE_RATE_192kHz;
+        config.TxDataportSampleRates = MXC_AUDIO_PCM_SAMPLE_RATE_192kHz;
+        config.RxDataportSampleRates = MXC_AUDIO_PCM_SAMPLE_RATE_192kHz;
+        config.TxExtraBitsFormat = MXC_AUDIO_TX_EXTRA_BITS_0;
+
+        int error = MXC_AUDIO_I2S_Configure(&config);
+        if (error != E_NO_ERROR)
+            printf("Error initializing audio: %d", error);
     }
 
     void addBitPulses(uint32_t bitPulses, uint16_t& currentWord, int8_t& currentPulsePos, uint32_t* pixelsPulses)
