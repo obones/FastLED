@@ -1,12 +1,11 @@
 #include <stdio.h>
 #include <mxc_device.h>
-#include <mxc_delay.h>
-#include "audio_regs.h"
 #include <max32665.h>
 #include "audio.h"
 #include <math.h>
 #include <nvic_table.h>
 #include "fl/pixel_iterator.h"
+#include "Arduino.h"
 
 #define INTERRUPT_BASED
 
@@ -375,8 +374,12 @@ namespace fl
             #endif
         }
 
-        // Words are placed in the FIFOs, wait for transmission end (ie, FIFOs are empty) then disable TX
+        // Words are placed in the FIFOs so now we have to:
+        //   1. wait for transmission end (ie, FIFOs are empty)
+        //   2. wait for the "low to reset" period (280us according to datasheet)
+        //   3. disable TX
         int waitCount = 0;
+        uint32_t waitStartMicros = micros();
         while (MXC_AUDIO->int_pcm_tx_status != 0)
         {
             /*MXC_Delay(500*1000);
@@ -410,7 +413,12 @@ namespace fl
         printf("\n");
         #endif
 
-        //MXC_Delay(1);
+        // Keep 280 microseconds low to "reset the line" as per datasheet but don't do it blindly with MXC_Delay as
+        // we have already waited for the FIFOs to have been read and we now the last samples to be full of zeros.
+        uint32_t endMicros = waitStartMicros;
+        while (endMicros - waitStartMicros < 280)
+            endMicros = micros();
+
         MXC_AUDIO->global_en = 0; // settings pcm_tx_enables_byte0 to 0 leaves 900mv on the DOUT pin!
         MXC_AUDIO->pcm_tx_enables_byte0 = 0;
     }
