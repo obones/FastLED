@@ -136,7 +136,7 @@ namespace fl
         freq = 1000000000L * freq * gPulsesPerBit;
         printf("needed frequency (nbPulse per bit) * (chipset // frequency): %f Mhz\n", freq / 1000000);
         printf("SystemCoreClock: %d\n", SystemCoreClock);
-        printf("needed BitCLK divider: %d\n", SystemCoreClock / (uint32_t)round(freq));
+        printf("needed BitCLK divider: %d\n", SystemCoreClock / (uint32_t)round(freq) / 2); // divide by two because we use Toggle mode which already halves the clock
 
         uint32_t bit_mask = ~(0xFFFFFFFF << gPulsesPerBit);
         int ones_for_one = T1Pulses + T2Pulses;
